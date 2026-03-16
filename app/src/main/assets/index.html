@@ -1,0 +1,777 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>EyeDrop Reminder</title>
+<meta name="description" content="Post-operative eye drop medication reminder">
+<meta name="theme-color" content="#0a1628">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --bg: #0a1628;
+  --bg2: #111d33;
+  --card: #162240;
+  --blue: #4a9eff;
+  --green: #34d399;
+  --green-bg: rgba(52, 211, 153, 0.12);
+  --amber: #fbbf24;
+  --amber-bg: rgba(251, 191, 36, 0.12);
+  --red: #f87171;
+  --red-bg: rgba(248, 113, 113, 0.1);
+  --text: #e8edf5;
+  --text2: #8a9bba;
+  --text3: #506080;
+  --radius: 16px;
+  --radius-sm: 10px;
+  --font: 'DM Sans', -apple-system, sans-serif;
+  --mono: 'Space Mono', monospace;
+}
+
+html { background: var(--bg); }
+
+body {
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100dvh;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+.topbar {
+  position: sticky; top: 0; z-index: 50;
+  background: rgba(10, 22, 40, 0.85);
+  backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+  padding: 16px 20px 12px;
+  border-bottom: 1px solid rgba(74, 158, 255, 0.08);
+}
+.topbar h1 {
+  font-size: 20px; font-weight: 700;
+  background: linear-gradient(135deg, #4a9eff, #34d399);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+}
+.topbar .subtitle { font-size: 12px; color: var(--text3); margin-top: 2px; font-family: var(--mono); }
+
+.tabs {
+  display: flex; gap: 4px; padding: 8px 20px; background: var(--bg);
+  position: sticky; top: 60px; z-index: 40;
+}
+.tab {
+  flex: 1; padding: 10px 8px; border: none; border-radius: var(--radius-sm);
+  background: transparent; color: var(--text3); font-family: var(--font);
+  font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.25s ease;
+}
+.tab.active { background: var(--blue); color: #fff; }
+.tab:not(.active):hover { background: var(--card); color: var(--text2); }
+
+.container { padding: 12px 16px 120px; max-width: 480px; margin: 0 auto; }
+
+.week-banner {
+  background: linear-gradient(135deg, rgba(74,158,255,0.15), rgba(52,211,153,0.1));
+  border: 1px solid rgba(74,158,255,0.2); border-radius: var(--radius);
+  padding: 16px 18px; margin-bottom: 16px;
+  display: flex; align-items: center; gap: 14px;
+}
+.week-num {
+  width: 48px; height: 48px; border-radius: 14px; background: var(--blue); color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 20px; font-weight: 700; flex-shrink: 0;
+}
+.week-info h2 { font-size: 16px; font-weight: 700; }
+.week-info p { font-size: 12px; color: var(--text2); margin-top: 2px; font-family: var(--mono); }
+
+.progress-section {
+  display: flex; align-items: center; gap: 18px;
+  background: var(--card); border-radius: var(--radius); padding: 18px; margin-bottom: 16px;
+}
+.ring-wrap { position: relative; width: 64px; height: 64px; flex-shrink: 0; }
+.ring-wrap svg { transform: rotate(-90deg); }
+.ring-bg { fill: none; stroke: var(--bg); stroke-width: 6; }
+.ring-fg { fill: none; stroke: var(--green); stroke-width: 6; stroke-linecap: round; transition: stroke-dashoffset 0.6s ease; }
+.ring-text {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  font-size: 16px; font-weight: 700; color: var(--green);
+}
+.progress-info h3 { font-size: 14px; font-weight: 600; }
+.progress-info p { font-size: 12px; color: var(--text2); margin-top: 4px; }
+
+/* ── Time group (staggered layout) ─── */
+.time-group {
+  background: var(--card); border-radius: var(--radius);
+  padding: 16px; margin-bottom: 12px; border: 1px solid rgba(255,255,255,0.04);
+}
+.time-group-header {
+  display: flex; align-items: center; gap: 10px;
+  margin-bottom: 14px; padding-bottom: 10px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+.time-group-icon { font-size: 20px; }
+.time-group-label { font-size: 15px; font-weight: 700; }
+.time-group-range { font-size: 11px; color: var(--text3); font-family: var(--mono); margin-left: auto; }
+
+.drop-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.03);
+}
+.drop-row:last-child { border-bottom: none; }
+.drop-time {
+  font-family: var(--mono); font-size: 13px; font-weight: 700;
+  color: var(--blue); width: 76px; flex-shrink: 0;
+}
+.drop-med-info { flex: 1; }
+.drop-med-name { font-size: 14px; font-weight: 600; }
+.drop-med-sub { font-size: 11px; color: var(--text3); margin-top: 1px; }
+.drop-color { width: 4px; height: 32px; border-radius: 4px; flex-shrink: 0; }
+.drop-color.c1 { background: var(--blue); }
+.drop-color.c2 { background: #a78bfa; }
+.drop-color.c3 { background: #f472b6; }
+
+.drop-check {
+  width: 36px; height: 36px; border-radius: 10px;
+  border: 2px solid var(--text3); background: transparent;
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  font-size: 16px; color: transparent; transition: all 0.25s ease; flex-shrink: 0;
+}
+.drop-check:active { transform: scale(0.9); }
+.drop-check.done { background: var(--green); border-color: var(--green); color: #fff; }
+.drop-check.upcoming { border-color: var(--amber); animation: pulse-border 2s infinite; }
+@keyframes pulse-border {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(251,191,36,0.4); }
+  50% { box-shadow: 0 0 0 6px rgba(251,191,36,0); }
+}
+.drop-row.upcoming-row .drop-time { color: var(--amber); }
+
+/* ── Settings ────────────────────────── */
+.settings-section { margin-bottom: 20px; }
+.settings-section h3 { font-size: 14px; font-weight: 700; margin-bottom: 12px; color: var(--text2); }
+.setting-row {
+  display: flex; align-items: center; justify-content: space-between;
+  background: var(--card); border-radius: var(--radius-sm); padding: 14px 16px; margin-bottom: 8px;
+}
+.setting-row label { font-size: 14px; font-weight: 500; }
+.setting-row input[type="time"], .setting-row input[type="date"] {
+  background: var(--bg2); border: 1px solid var(--text3); border-radius: 8px;
+  padding: 6px 10px; color: var(--text); font-family: var(--mono); font-size: 13px;
+}
+.toggle { position: relative; width: 48px; height: 28px; }
+.toggle input { opacity: 0; width: 0; height: 0; }
+.toggle .slider {
+  position: absolute; inset: 0; background: var(--bg2); border-radius: 28px;
+  cursor: pointer; transition: 0.3s; border: 2px solid var(--text3);
+}
+.toggle .slider::before {
+  content: ''; position: absolute; width: 20px; height: 20px; border-radius: 50%;
+  background: var(--text3); left: 2px; top: 2px; transition: 0.3s;
+}
+.toggle input:checked + .slider { background: var(--blue); border-color: var(--blue); }
+.toggle input:checked + .slider::before { background: #fff; transform: translateX(20px); }
+
+.reminder-note {
+  background: var(--amber-bg); border: 1px solid rgba(251,191,36,0.2);
+  border-radius: var(--radius-sm); padding: 12px 14px;
+  font-size: 12px; color: var(--amber); margin-top: 16px;
+  display: flex; align-items: center; gap: 8px;
+}
+.reminder-note .note-icon { font-size: 16px; }
+
+.full-schedule-card {
+  background: var(--card); border-radius: var(--radius); padding: 16px; margin-bottom: 12px;
+}
+.full-schedule-card h3 { font-size: 14px; font-weight: 700; margin-bottom: 12px; }
+.sched-row {
+  display: flex; align-items: center; gap: 12px; padding: 8px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.04); font-size: 13px;
+}
+.sched-row:last-child { border-bottom: none; }
+.sched-week { font-family: var(--mono); font-size: 11px; color: var(--text3); width: 50px; flex-shrink: 0; }
+.sched-freq { color: var(--text2); flex: 1; }
+.sched-active { color: var(--green); font-weight: 600; }
+
+.panel { display: none; }
+.panel.active { display: block; }
+
+.btn-reset {
+  width: 100%; padding: 14px; border: none; border-radius: var(--radius-sm);
+  background: var(--red-bg); color: var(--red); font-family: var(--font);
+  font-size: 14px; font-weight: 600; cursor: pointer;
+  border: 1px solid rgba(248,113,113,0.2); margin-top: 12px;
+}
+.btn-reset:active { opacity: 0.7; }
+.btn-primary {
+  width: 100%; padding: 14px; border: none; border-radius: var(--radius-sm);
+  background: var(--blue); color: #fff; font-family: var(--font);
+  font-size: 14px; font-weight: 600; cursor: pointer; margin-top: 12px;
+}
+.btn-test-alarm {
+  width: 100%; padding: 12px; border: none; border-radius: var(--radius-sm);
+  background: var(--amber-bg); color: var(--amber); font-family: var(--font);
+  font-size: 13px; font-weight: 600; cursor: pointer;
+  border: 1px solid rgba(251,191,36,0.2); margin-top: 8px;
+}
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.time-group, .week-banner, .progress-section { animation: fadeUp 0.4s ease both; }
+.time-group:nth-child(3) { animation-delay: 0.05s; }
+.time-group:nth-child(4) { animation-delay: 0.1s; }
+.time-group:nth-child(5) { animation-delay: 0.15s; }
+.time-group:nth-child(6) { animation-delay: 0.2s; }
+
+.install-banner {
+  background: linear-gradient(135deg, var(--card), var(--bg2));
+  border: 1px solid rgba(74,158,255,0.15); border-radius: var(--radius);
+  padding: 16px; margin-bottom: 16px; display: none; align-items: center; gap: 12px;
+}
+.install-banner.show { display: flex; }
+.install-banner p { font-size: 13px; color: var(--text2); flex: 1; }
+.install-banner button {
+  padding: 8px 16px; border: none; border-radius: 8px; background: var(--blue);
+  color: #fff; font-family: var(--font); font-size: 13px; font-weight: 600; cursor: pointer;
+}
+.install-dismiss { background: none !important; color: var(--text3) !important; font-size: 18px !important; padding: 4px !important; }
+
+/* ── Alarm overlay ───────────────────── */
+.alarm-overlay {
+  display: none; position: fixed; inset: 0; z-index: 1000;
+  background: rgba(0,0,0,0.88); backdrop-filter: blur(16px);
+  flex-direction: column; align-items: center; justify-content: center;
+  gap: 16px; padding: 32px;
+}
+.alarm-overlay.active { display: flex; }
+.alarm-overlay .alarm-icon { font-size: 64px; animation: alarmBounce 0.5s ease infinite alternate; }
+@keyframes alarmBounce {
+  from { transform: scale(1) rotate(-8deg); }
+  to { transform: scale(1.2) rotate(8deg); }
+}
+.alarm-overlay .alarm-med {
+  font-size: 26px; font-weight: 700; text-align: center;
+  background: linear-gradient(135deg, #4a9eff, #34d399);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+}
+.alarm-overlay .alarm-sub { font-size: 15px; color: var(--text2); text-align: center; }
+.alarm-overlay .alarm-dismiss {
+  margin-top: 20px; padding: 18px 56px; border: none; border-radius: var(--radius);
+  background: var(--green); color: #fff; font-family: var(--font);
+  font-size: 18px; font-weight: 700; cursor: pointer;
+}
+.alarm-overlay .alarm-dismiss:active { transform: scale(0.96); }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <h1>💧 EyeDrop Reminder</h1>
+  <div class="subtitle">Post-Op Cataract · Right Eye</div>
+</div>
+
+<div class="tabs">
+  <button class="tab active" data-tab="today">Today</button>
+  <button class="tab" data-tab="schedule">Full Plan</button>
+  <button class="tab" data-tab="settings">Settings</button>
+</div>
+
+<div class="container">
+  <div class="install-banner" id="installBanner">
+    <p>Install for home screen access & alarms</p>
+    <button id="installBtn">Install</button>
+    <button class="install-dismiss" id="installDismiss">×</button>
+  </div>
+  <div class="panel active" id="panel-today"></div>
+  <div class="panel" id="panel-schedule"></div>
+  <div class="panel" id="panel-settings"></div>
+</div>
+
+<div class="alarm-overlay" id="alarmOverlay">
+  <div class="alarm-icon">💧</div>
+  <div class="alarm-med" id="alarmMedName"></div>
+  <div class="alarm-sub" id="alarmSub">1 drop · Right Eye</div>
+  <button class="alarm-dismiss" id="alarmDismiss">Done ✓</button>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════════════
+const DEFAULTS = {
+  startDate: new Date().toISOString().slice(0, 10),
+  wakeTime: '07:00',
+  sleepTime: '22:00',
+  alarmsOn: true
+};
+
+function loadState() {
+  try {
+    const s = localStorage.getItem('eyedrop_v3');
+    return s ? JSON.parse(s) : { ...DEFAULTS, completed: {}, setupDone: false };
+  } catch { return { ...DEFAULTS, completed: {}, setupDone: false }; }
+}
+function saveState(s) { localStorage.setItem('eyedrop_v3', JSON.stringify(s)); }
+let state = loadState();
+
+// ═══════════════════════════════════════════════════════════
+// AUDIO ALARM + SPEECH
+// ═══════════════════════════════════════════════════════════
+const AudioCtx = window.AudioContext || window.webkitAudioContext;
+let audioCtx = null;
+
+function ensureAudio() {
+  if (!audioCtx || audioCtx.state === 'closed') audioCtx = new AudioCtx();
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  return audioCtx;
+}
+
+function playAlarmSound() {
+  const ctx = ensureAudio();
+  const now = ctx.currentTime;
+  function chime(t0) {
+    [659.25, 783.99, 987.77].forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0, t0 + i * 0.18);
+      gain.gain.linearRampToValueAtTime(0.35, t0 + i * 0.18 + 0.04);
+      gain.gain.exponentialRampToValueAtTime(0.001, t0 + i * 0.18 + 0.55);
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.start(t0 + i * 0.18); osc.stop(t0 + i * 0.18 + 0.6);
+    });
+  }
+  chime(now); chime(now + 0.8); chime(now + 1.6);
+}
+
+function speakMed(name) {
+  if (!('speechSynthesis' in window)) return;
+  setTimeout(() => {
+    speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(`Time for ${name}. One drop. Right eye.`);
+    u.rate = 0.9; u.pitch = 1.0; u.volume = 1.0; u.lang = 'en-IN';
+    speechSynthesis.speak(u);
+  }, 2200);
+}
+
+function triggerAlarm(medName) {
+  playAlarmSound();
+  speakMed(medName);
+  document.getElementById('alarmMedName').textContent = medName;
+  document.getElementById('alarmOverlay').classList.add('active');
+
+  if ('Notification' in window && Notification.permission === 'granted') {
+    new Notification('💧 Eye Drop Time!', {
+      body: `${medName} — 1 drop, Right Eye`,
+      icon: 'icon-192.png',
+      tag: 'eyedrop-' + Date.now(),
+      requireInteraction: true
+    });
+  }
+}
+
+document.getElementById('alarmDismiss').addEventListener('click', () => {
+  document.getElementById('alarmOverlay').classList.remove('active');
+  if ('speechSynthesis' in window) speechSynthesis.cancel();
+});
+
+// ═══════════════════════════════════════════════════════════
+// SCHEDULE DEFS
+// ═══════════════════════════════════════════════════════════
+const moxigramWeeks = [
+  { week: 1, perDay: 6, label: '6×/day', gap: '2.5 hrs' },
+  { week: 2, perDay: 5, label: '5×/day', gap: '3.5 hrs' },
+  { week: 3, perDay: 4, label: '4×/day (M·A·E·N)' },
+  { week: 4, perDay: 3, label: '3×/day (M·A·N)' },
+  { week: 5, perDay: 2, label: '2×/day (M·N)' },
+  { week: 6, perDay: 1, label: '1×/day (M)' },
+];
+
+const MED_GAP = 15; // minutes between drops
+
+const MEDS = {
+  moxi:  { name: 'Moxigram DM',  color: 'c1', sub: 'Antibiotic · 1 drop' },
+  micro: { name: 'Micronac PF',  color: 'c2', sub: 'Anti-inflammatory · 1 drop' },
+  fomi:  { name: 'Fomisa',       color: 'c3', sub: 'Lubricant · 1 drop' },
+};
+
+// ═══════════════════════════════════════════════════════════
+// HELPERS
+// ═══════════════════════════════════════════════════════════
+function daysBetween(a, b) {
+  const d1 = new Date(a); d1.setHours(0,0,0,0);
+  const d2 = new Date(b); d2.setHours(0,0,0,0);
+  return Math.floor((d2 - d1) / 86400000);
+}
+function getCurrentWeek() {
+  const d = daysBetween(state.startDate, new Date());
+  return d < 0 ? 0 : Math.floor(d / 7) + 1;
+}
+function getDayInWeek() { return (daysBetween(state.startDate, new Date()) % 7) + 1; }
+function getTodayKey() { return new Date().toISOString().slice(0, 10); }
+function isCompleted(key) { return !!state.completed[key]; }
+function toggleCompleted(key) {
+  state.completed[key] = !state.completed[key];
+  saveState(state);
+  renderToday();
+}
+function parseTime(t) { const [h, m] = t.split(':').map(Number); return h * 60 + m; }
+function formatTime(min) {
+  const h = Math.floor(min / 60), m = min % 60;
+  return `${h % 12 || 12}:${String(m).padStart(2,'0')} ${h >= 12 ? 'PM' : 'AM'}`;
+}
+function getCurrentMinutes() { const n = new Date(); return n.getHours() * 60 + n.getMinutes(); }
+
+function getBaseSlots(count) {
+  const wake = parseTime(state.wakeTime), sleep = parseTime(state.sleepTime);
+  const total = sleep - wake;
+  if (count === 1) return [{ label: 'Morning', time: wake }];
+  if (count <= 4) {
+    const labels = count === 2 ? ['Morning','Night'] :
+                   count === 3 ? ['Morning','Afternoon','Night'] :
+                   ['Morning','Afternoon','Evening','Night'];
+    const gap = total / (count - 1);
+    return labels.map((l, i) => ({ label: l, time: Math.round(wake + gap * i) }));
+  }
+  const gap = total / (count - 1);
+  return Array.from({length: count}, (_, i) => ({ label: `Dose ${i+1}`, time: Math.round(wake + gap * i) }));
+}
+
+function getSlotIcon(label) {
+  if (/Morning|Dose 1/.test(label)) return '🌅';
+  if (/Afternoon|Dose [23]/.test(label)) return '☀️';
+  if (/Evening|Dose 4/.test(label)) return '🌇';
+  if (/Night|Dose [56]/.test(label)) return '🌙';
+  return '💧';
+}
+
+// ═══════════════════════════════════════════════════════════
+// BUILD STAGGERED TIMELINE
+// ═══════════════════════════════════════════════════════════
+function buildTimeline() {
+  const week = getCurrentWeek();
+  const totalDays = daysBetween(state.startDate, new Date());
+  const todayKey = getTodayKey();
+
+  const activeMeds = [];
+  if (week >= 1 && week <= 6) activeMeds.push({ id: 'moxi', ...MEDS.moxi, slotCount: moxigramWeeks[week-1].perDay });
+  if (totalDays >= 0 && totalDays < 45) activeMeds.push({ id: 'micro', ...MEDS.micro, slotCount: 3 });
+  if (totalDays >= 0) activeMeds.push({ id: 'fomi', ...MEDS.fomi, slotCount: 3 });
+
+  if (!activeMeds.length) return [];
+
+  const maxSlots = Math.max(...activeMeds.map(m => m.slotCount));
+  const baseSlots = getBaseSlots(maxSlots);
+  const groups = [];
+
+  baseSlots.forEach((slot, slotIdx) => {
+    const drops = [];
+    let offset = 0;
+
+    activeMeds.forEach(med => {
+      const medSlots = getBaseSlots(med.slotCount);
+      const match = medSlots.some(s => Math.abs(s.time - slot.time) < 15);
+      if (match) {
+        const key = `${todayKey}_${med.id}_${slotIdx}`;
+        drops.push({ time: slot.time + offset, medId: med.id, medName: med.name, color: med.color, sub: med.sub, key });
+        offset += MED_GAP;
+      }
+    });
+
+    if (drops.length) {
+      groups.push({
+        label: slot.label,
+        icon: getSlotIcon(slot.label),
+        baseTime: slot.time,
+        endTime: drops[drops.length - 1].time,
+        drops
+      });
+    }
+  });
+
+  return groups;
+}
+
+// ═══════════════════════════════════════════════════════════
+// RENDER TODAY
+// ═══════════════════════════════════════════════════════════
+function renderToday() {
+  const panel = document.getElementById('panel-today');
+  const week = getCurrentWeek();
+  const totalDays = daysBetween(state.startDate, new Date());
+
+  if (week < 1) {
+    panel.innerHTML = `
+      <div class="week-banner"><div class="week-num">⏳</div>
+        <div class="week-info"><h2>Treatment hasn't started yet</h2><p>Starts on ${state.startDate}</p></div>
+      </div>
+      <div class="reminder-note"><span class="note-icon">ℹ️</span> Go to Settings to set your surgery date.</div>`;
+    return;
+  }
+
+  let html = '';
+  if (week <= 6) {
+    const mw = moxigramWeeks[week - 1];
+    html += `<div class="week-banner"><div class="week-num">${week}</div>
+      <div class="week-info"><h2>Week ${week} — ${mw.label}</h2>
+      <p>Day ${getDayInWeek()} of 7 · Moxigram taper</p></div></div>`;
+  } else {
+    html += `<div class="week-banner"><div class="week-num" style="background:var(--green)">✓</div>
+      <div class="week-info"><h2>Moxigram DM Complete</h2><p>Day ${totalDays+1} overall</p></div></div>`;
+  }
+
+  const groups = buildTimeline();
+  let totalDrops = 0, doneDrops = 0;
+  groups.forEach(g => g.drops.forEach(d => { totalDrops++; if (isCompleted(d.key)) doneDrops++; }));
+
+  const pct = totalDrops ? Math.round((doneDrops / totalDrops) * 100) : 0;
+  const circ = 2 * Math.PI * 26;
+  const off = circ - (pct / 100) * circ;
+
+  html += `<div class="progress-section">
+    <div class="ring-wrap">
+      <svg width="64" height="64" viewBox="0 0 64 64">
+        <circle class="ring-bg" cx="32" cy="32" r="26"/>
+        <circle class="ring-fg" cx="32" cy="32" r="26" stroke-dasharray="${circ}" stroke-dashoffset="${off}"/>
+      </svg>
+      <div class="ring-text">${pct}%</div>
+    </div>
+    <div class="progress-info">
+      <h3>${doneDrops} of ${totalDrops} drops done today</h3>
+      <p>${totalDrops - doneDrops === 0 ? 'All done for today! 🎉' : `${totalDrops - doneDrops} remaining`}</p>
+    </div>
+  </div>`;
+
+  const nowMin = getCurrentMinutes();
+
+  groups.forEach(group => {
+    const rangeStr = group.drops.length > 1
+      ? `${formatTime(group.baseTime)} → ${formatTime(group.endTime)}`
+      : formatTime(group.baseTime);
+
+    html += `<div class="time-group">
+      <div class="time-group-header">
+        <span class="time-group-icon">${group.icon}</span>
+        <span class="time-group-label">${group.label}</span>
+        <span class="time-group-range">${rangeStr}</span>
+      </div>`;
+
+    group.drops.forEach(drop => {
+      const done = isCompleted(drop.key);
+      const isUp = !done && Math.abs(nowMin - drop.time) < 20;
+      html += `<div class="drop-row ${isUp ? 'upcoming-row' : ''}">
+        <span class="drop-time">${formatTime(drop.time)}</span>
+        <div class="drop-color ${drop.color}"></div>
+        <div class="drop-med-info">
+          <div class="drop-med-name">${drop.medName}</div>
+          <div class="drop-med-sub">${drop.sub}</div>
+        </div>
+        <button class="drop-check ${done ? 'done' : isUp ? 'upcoming' : ''}" onclick="toggleCompleted('${drop.key}')">
+          ${done ? '✓' : ''}
+        </button>
+      </div>`;
+    });
+
+    html += `</div>`;
+  });
+
+  html += `<div class="reminder-note"><span class="note-icon">⏱️</span>
+    15-min gap between each drop is built into the schedule above</div>`;
+  panel.innerHTML = html;
+}
+
+// ═══════════════════════════════════════════════════════════
+// RENDER FULL SCHEDULE
+// ═══════════════════════════════════════════════════════════
+function renderSchedule() {
+  const panel = document.getElementById('panel-schedule');
+  const week = getCurrentWeek();
+
+  let html = `<div class="full-schedule-card"><h3>💧 Moxigram DM — 6 Week Taper</h3>`;
+  moxigramWeeks.forEach(mw => {
+    const start = new Date(state.startDate);
+    start.setDate(start.getDate() + (mw.week - 1) * 7);
+    const active = week === mw.week, past = week > mw.week;
+    html += `<div class="sched-row">
+      <span class="sched-week ${active ? 'sched-active' : ''}">${active ? '▶ ' : ''}Wk ${mw.week}</span>
+      <span class="sched-freq" style="${past ? 'text-decoration:line-through;opacity:0.4' : ''} ${active ? 'color:var(--green);font-weight:600' : ''}">${mw.label}</span>
+      <span style="font-size:11px;color:var(--text3);font-family:var(--mono)">${start.toLocaleDateString('en-IN',{day:'numeric',month:'short'})}</span>
+    </div>`;
+  });
+  html += `</div>`;
+
+  const micEnd = new Date(state.startDate); micEnd.setDate(micEnd.getDate() + 45);
+  html += `<div class="full-schedule-card"><h3>💜 Micronac PF — 1.5 Months</h3>
+    <div class="sched-row"><span class="sched-week">Dose</span><span class="sched-freq">3×/day (M · A · N) — staggered 15 min</span></div>
+    <div class="sched-row"><span class="sched-week">Until</span><span class="sched-freq">${micEnd.toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'})}</span></div>
+  </div>`;
+
+  html += `<div class="full-schedule-card"><h3>💗 Fomisa — Ongoing</h3>
+    <div class="sched-row"><span class="sched-week">Dose</span><span class="sched-freq">3×/day (M · A · N) — staggered 15 min</span></div>
+    <div class="sched-row"><span class="sched-week">Note</span><span class="sched-freq">Continue until doctor advises to stop</span></div>
+  </div>`;
+
+  panel.innerHTML = html;
+}
+
+// ═══════════════════════════════════════════════════════════
+// RENDER SETTINGS
+// ═══════════════════════════════════════════════════════════
+function renderSettings() {
+  document.getElementById('panel-settings').innerHTML = `
+    <div class="settings-section"><h3>Surgery Date</h3>
+      <div class="setting-row"><label>Start Date</label>
+        <input type="date" id="startDate" value="${state.startDate}"></div>
+    </div>
+    <div class="settings-section"><h3>Wake & Sleep</h3>
+      <div class="setting-row"><label>Wake Up</label>
+        <input type="time" id="wakeTime" value="${state.wakeTime}"></div>
+      <div class="setting-row"><label>Sleep</label>
+        <input type="time" id="sleepTime" value="${state.sleepTime}"></div>
+    </div>
+    <div class="settings-section"><h3>Alarms</h3>
+      <div class="setting-row"><label>Sound + Voice Alarms</label>
+        <label class="toggle"><input type="checkbox" id="alarmToggle" ${state.alarmsOn ? 'checked' : ''}><span class="slider"></span></label>
+      </div>
+      <button class="btn-test-alarm" onclick="testAlarm()">🔔 Test Alarm Sound & Voice</button>
+    </div>
+    <button class="btn-primary" onclick="saveSettings()">Save Settings</button>
+    <button class="btn-reset" onclick="resetToday()">Reset Today's Progress</button>
+    <button class="btn-reset" style="margin-top:8px;background:transparent;border-color:var(--text3);color:var(--text3)" onclick="resetAll()">Reset All Data</button>`;
+}
+
+function testAlarm() {
+  if (window.NativeBridge && NativeBridge.isNativeApp()) {
+    NativeBridge.testAlarm();
+  } else {
+    triggerAlarm('Moxigram DM');
+  }
+}
+
+function saveSettings() {
+  state.startDate = document.getElementById('startDate').value || state.startDate;
+  state.wakeTime = document.getElementById('wakeTime').value || state.wakeTime;
+  state.sleepTime = document.getElementById('sleepTime').value || state.sleepTime;
+  state.alarmsOn = document.getElementById('alarmToggle').checked;
+  state.setupDone = true;
+  saveState(state);
+
+  // Sync to native if available
+  if (window.NativeBridge && NativeBridge.isNativeApp()) {
+    NativeBridge.setStartDate(state.startDate);
+    NativeBridge.setWakeTime(parseTime(state.wakeTime));
+    NativeBridge.setSleepTime(parseTime(state.sleepTime));
+    NativeBridge.setAlarmsOn(state.alarmsOn);
+    NativeBridge.rescheduleAlarms();
+  } else {
+    if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission();
+    scheduleAlarms();
+  }
+
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelector('[data-tab="today"]').classList.add('active');
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('panel-today').classList.add('active');
+  renderToday();
+}
+
+function resetToday() {
+  const k = getTodayKey();
+  Object.keys(state.completed).forEach(c => { if (c.startsWith(k)) delete state.completed[c]; });
+  saveState(state); renderToday();
+}
+function resetAll() {
+  if (confirm('Reset all data?')) { localStorage.removeItem('eyedrop_v3'); state = { ...DEFAULTS, completed: {}, setupDone: false }; renderToday(); }
+}
+
+// ═══════════════════════════════════════════════════════════
+// ALARM SCHEDULER
+// ═══════════════════════════════════════════════════════════
+let alarmTimers = [];
+function scheduleAlarms() {
+  alarmTimers.forEach(t => clearTimeout(t)); alarmTimers = [];
+  if (!state.alarmsOn) return;
+
+  const groups = buildTimeline();
+  const now = new Date();
+  const nowMin = now.getHours() * 60 + now.getMinutes();
+  const nowSec = now.getSeconds();
+
+  groups.forEach(g => g.drops.forEach(drop => {
+    if (drop.time > nowMin || (drop.time === nowMin && nowSec < 30)) {
+      const delay = Math.max(0, ((drop.time - nowMin) * 60 - nowSec) * 1000);
+      alarmTimers.push(setTimeout(() => {
+        if (!isCompleted(drop.key)) triggerAlarm(drop.medName);
+      }, delay));
+    }
+  }));
+}
+
+// ═══════════════════════════════════════════════════════════
+// TABS
+// ═══════════════════════════════════════════════════════════
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    const target = tab.getAttribute('data-tab');
+    document.getElementById('panel-' + target).classList.add('active');
+    if (target === 'today') renderToday();
+    if (target === 'schedule') renderSchedule();
+    if (target === 'settings') renderSettings();
+  });
+});
+
+// ═══════════════════════════════════════════════════════════
+// PWA INSTALL
+// ═══════════════════════════════════════════════════════════
+let deferredPrompt;
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault(); deferredPrompt = e;
+  document.getElementById('installBanner').classList.add('show');
+});
+document.getElementById('installBtn')?.addEventListener('click', () => {
+  if (deferredPrompt) { deferredPrompt.prompt(); deferredPrompt.userChoice.then(() => {
+    deferredPrompt = null; document.getElementById('installBanner').classList.remove('show');
+  }); }
+});
+document.getElementById('installDismiss')?.addEventListener('click', () => {
+  document.getElementById('installBanner').classList.remove('show');
+});
+
+// ═══════════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════════
+document.addEventListener('click', () => ensureAudio(), { once: true });
+
+// Sync from native settings if running inside APK
+if (window.NativeBridge && NativeBridge.isNativeApp()) {
+  const nativeStart = NativeBridge.getStartDate();
+  if (nativeStart) state.startDate = nativeStart;
+  const nativeWake = NativeBridge.getWakeTime();
+  if (nativeWake > 0) state.wakeTime = String(Math.floor(nativeWake/60)).padStart(2,'0') + ':' + String(nativeWake%60).padStart(2,'0');
+  const nativeSleep = NativeBridge.getSleepTime();
+  if (nativeSleep > 0) state.sleepTime = String(Math.floor(nativeSleep/60)).padStart(2,'0') + ':' + String(nativeSleep%60).padStart(2,'0');
+  state.alarmsOn = NativeBridge.isAlarmsOn();
+  saveState(state);
+  // Hide install banner in native app
+  document.getElementById('installBanner').style.display = 'none';
+}
+
+renderToday();
+scheduleAlarms();
+setInterval(() => renderToday(), 60000);
+
+// Reschedule alarms at midnight
+const msToMid = new Date().setHours(24,0,0,0) - Date.now();
+setTimeout(() => { renderToday(); scheduleAlarms(); setInterval(() => { renderToday(); scheduleAlarms(); }, 86400000); }, msToMid);
+
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(() => {});
+</script>
+</body>
+</html>
