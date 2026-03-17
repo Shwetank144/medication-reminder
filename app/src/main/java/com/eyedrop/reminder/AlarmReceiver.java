@@ -31,17 +31,11 @@ public class AlarmReceiver extends BroadcastReceiver {
         );
         wl.acquire(30000); // 30 seconds
 
-        // Launch the full-screen alarm activity
-        Intent alarmIntent = new Intent(context, AlarmActivity.class);
-        alarmIntent.putExtra("med_name", medName);
-        alarmIntent.putExtra("med_sub", medSub);
-        alarmIntent.putExtra("med_index", medIndex);
-        alarmIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
-        context.startActivity(alarmIntent);
-
-        // Also show a notification
+        // Show notification with fullScreenIntent — this is the correct way to launch
+        // an activity from background on Android 10+. Android will auto-launch the
+        // AlarmActivity as a full-screen overlay (like an incoming call screen).
         createNotificationChannel(context);
-        showNotification(context, medName, medSub);
+        showNotification(context, medName, medSub, medIndex);
 
         wl.release();
     }
@@ -62,7 +56,19 @@ public class AlarmReceiver extends BroadcastReceiver {
         }
     }
 
-    private void showNotification(Context ctx, String medName, String medSub) {
+    private void showNotification(Context ctx, String medName, String medSub, int medIndex) {
+        // Full-screen intent: launches AlarmActivity as an overlay (works on locked/sleeping screen)
+        Intent alarmIntent = new Intent(ctx, AlarmActivity.class);
+        alarmIntent.putExtra("med_name", medName);
+        alarmIntent.putExtra("med_sub", medSub);
+        alarmIntent.putExtra("med_index", medIndex);
+        alarmIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+        PendingIntent fullScreenPi = PendingIntent.getActivity(
+            ctx, (int)(System.currentTimeMillis() % 10000), alarmIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
+        );
+
+        // Tap intent: opens main app if user taps the notification banner
         Intent tapIntent = new Intent(ctx, MainActivity.class);
         tapIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
         PendingIntent pendingTap = PendingIntent.getActivity(
@@ -72,11 +78,12 @@ public class AlarmReceiver extends BroadcastReceiver {
         NotificationCompat.Builder builder = new NotificationCompat.Builder(ctx, CHANNEL_ID)
             .setSmallIcon(R.mipmap.ic_launcher)
             .setContentTitle("💧 " + medName)
-            .setContentText("1 drop · Right Eye")
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setContentText(medSub)
+            .setPriority(NotificationCompat.PRIORITY_MAX)
             .setCategory(NotificationCompat.CATEGORY_ALARM)
             .setAutoCancel(true)
             .setContentIntent(pendingTap)
+            .setFullScreenIntent(fullScreenPi, true)   // ← this pops up AlarmActivity
             .setVibrate(new long[]{0, 500, 200, 500});
 
         NotificationManager nm = (NotificationManager) ctx.getSystemService(Context.NOTIFICATION_SERVICE);
